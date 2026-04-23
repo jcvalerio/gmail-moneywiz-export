@@ -1,0 +1,12 @@
+Hola CLIENTE DE PRUEBA
+¡Tu transacción fue realizada con éxito!
+Te compartimos el detalle:
+Comercio    COMERCIO DEMO ONLINE USA
+Tipo de Comercio    LIBRARIES
+Ciudad/País    ESTADOS UNIDOS
+Fecha/hora    05 dic 2025 / 23:08
+Número de tarjeta    ****-****-****-5678
+Número de autorización    123456
+Número de referencia    7654321098
+Monto
+USD: 26.64

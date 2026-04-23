@@ -1,0 +1,14 @@
+bac:
+  "AMEX ***********1234":
+    CRC: "AMEX"
+    USD: "AMEX $"
+
+scotia:
+  "VISA 4321":
+    CRC: "Infinity"
+    USD: "Infinity $"
+
+promerica:
+  "5678":
+    CRC: "Black"
+    USD: "Black $"

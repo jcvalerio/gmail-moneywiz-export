@@ -1,0 +1,28 @@
+[project]
+name = "gmail-moneywiz-export"
+version = "0.1.0"
+description = "Local Gmail bank email exporter for MoneyWiz CSV imports"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "beautifulsoup4>=4.12.3",
+  "google-api-python-client>=2.168.0",
+  "google-auth-httplib2>=0.2.0",
+  "google-auth-oauthlib>=1.2.2",
+  "pyyaml>=6.0.2",
+]
+
+[project.scripts]
+gmail-moneywiz-export = "gmail_moneywiz_export.cli:main"
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3.5",
+]
+
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gmail_moneywiz_export"]

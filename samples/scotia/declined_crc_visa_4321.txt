@@ -1,0 +1,2 @@
+Estimado cliente,
+DAVIbank le notifica que la transacción realizada en COMERCIO DEMO SAN JOSE Costa Rica, el día 21/04/2026 a las 05:10 PM con su tarjeta de crédito titular VISA terminada en 4321 con número de autorización 123456 y referencia 611117103060 por CRC 36,700.00, fue rechazada.

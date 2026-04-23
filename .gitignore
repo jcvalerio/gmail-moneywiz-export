@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+secrets/credentials.json
+secrets/token.json
+config/accounts.yaml
+
+exports/*.csv
+exports/*.json

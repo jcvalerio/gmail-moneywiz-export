@@ -1,0 +1,18 @@
+Hola CLIENTE DE PRUEBA
+A continuación le detallamos la transacción realizada:
+Comercio:
+COMERCIO DEMO
+Ciudad y país:
+SAN JOSE, Costa Rica
+Fecha:
+Mar 26, 2026, 11:15
+AMEX
+***********1234
+Autorización:
+123456
+Referencia:
+98765432
+Tipo de Transacción:
+COMPRA
+Monto:
+CRC 45,000.00
