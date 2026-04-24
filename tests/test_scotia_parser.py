@@ -5,7 +5,9 @@ from tests.helpers import read_sample
 
 
 def test_parse_scotia_approved_transaction() -> None:
-    transactions = parse_scotia("msg-2", read_sample("scotia/approved_crc_visa_4321.txt"))
+    transactions = parse_scotia(
+        "msg-2", read_sample("scotia/approved_crc_visa_4321.txt")
+    )
     assert len(transactions) == 1
     transaction = transactions[0]
     assert transaction.bank == "scotia"

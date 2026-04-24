@@ -1,6 +1,7 @@
 import re
 
-from gmail_moneywiz_export.models import Transaction
+from gmail_moneywiz_export.models import GmailMessage, Transaction
+from gmail_moneywiz_export.plugins import QueryHints
 from gmail_moneywiz_export.normalization import (
     normalize_amount,
     normalize_merchant,
@@ -21,7 +22,26 @@ SCOTIA_TRANSACTION_RE = re.compile(
     r"(?P<status>fue aprobada|fue rechazada|fue denegada)",
     re.IGNORECASE,
 )
-TRAILING_LOCATION_RE = re.compile(r"\s+(Costa Rica|Estados Unidos|USA)\s*$", re.IGNORECASE)
+TRAILING_LOCATION_RE = re.compile(
+    r"\s+(Costa Rica|Estados Unidos|USA)\s*$", re.IGNORECASE
+)
+
+
+class ScotiaPlugin:
+    id = "scotia"
+    display_name = "Scotiabank"
+    priority = 100
+
+    def query_hints(self) -> QueryHints:
+        return QueryHints(labels=("banks-scotiabank",))
+
+    def match_score(self, message: GmailMessage) -> int:
+        if "DAVIbank le notifica" in message.text:
+            return 100
+        return 0
+
+    def parse(self, message: GmailMessage) -> list[Transaction]:
+        return parse_scotia(message.message_id, message.text)
 
 
 def parse_scotia(message_id: str, text: str) -> list[Transaction]:

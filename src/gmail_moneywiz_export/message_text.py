@@ -18,7 +18,9 @@ def extract_message_text(payload: dict) -> str:
     return ""
 
 
-def _collect_parts(payload: dict, plain_parts: list[str], html_parts: list[str]) -> None:
+def _collect_parts(
+    payload: dict, plain_parts: list[str], html_parts: list[str]
+) -> None:
     mime_type = payload.get("mimeType", "")
     body = payload.get("body", {})
     data = body.get("data")

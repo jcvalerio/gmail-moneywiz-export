@@ -1,0 +1,18 @@
+[project]
+name = "gmail-moneywiz-plugin-demo-bank"
+version = "0.1.0"
+description = "Example third-party plugin for gmail-moneywiz-export"
+requires-python = ">=3.12"
+dependencies = [
+  "gmail-moneywiz-export>=0.1.0",
+]
+
+[project.entry-points."gmail_moneywiz_export.plugins"]
+demo-bank = "gmail_moneywiz_plugin_demo_bank:DemoBankPlugin"
+
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gmail_moneywiz_plugin_demo_bank"]
