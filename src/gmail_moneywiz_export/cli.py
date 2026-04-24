@@ -6,9 +6,17 @@ from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
+from gmail_moneywiz_export.config import AppConfig
 from gmail_moneywiz_export.exporter import write_csv
 from gmail_moneywiz_export.gmail_client import GmailClient
 from gmail_moneywiz_export.mapping import AccountMappings
+from gmail_moneywiz_export.plugins import (
+    QueryHintsOverride,
+    SourcePlugin,
+    builtin_plugins,
+    discover_plugins,
+    resolve_enabled_plugins,
+)
 from gmail_moneywiz_export.processor import MessageResult, process_message
 
 DEFAULT_PROCESSED_QUERY_LABEL = "banks-processed"
@@ -19,27 +27,63 @@ DEFAULT_SUBJECT_EXCLUSIONS = [
 ]
 
 
-def build_query(processed_query_label: str, subject_exclusions: list[str] | None = None) -> str:
-    exclusion_terms = " ".join(
-        f'-subject:"{subject}"' for subject in (subject_exclusions or DEFAULT_SUBJECT_EXCLUSIONS)
+def build_query(
+    processed_query_label: str,
+    plugins: list[SourcePlugin] | None = None,
+    *,
+    base_query: str = "label:inbox",
+    subject_exclusions: list[str] | None = None,
+    query_hints_overrides: dict[str, QueryHintsOverride] | None = None,
+) -> str:
+    plugins = plugins or [
+        definition.plugin for definition in builtin_plugins().values()
+    ]
+    query_hints_overrides = query_hints_overrides or {}
+
+    positive_terms: list[str] = []
+    plugin_subject_exclusions: list[str] = []
+    for plugin in plugins:
+        hints = query_hints_overrides.get(plugin.id, QueryHintsOverride()).apply(
+            plugin.query_hints()
+        )
+        positive_terms.extend(_label_term(label) for label in hints.labels)
+        positive_terms.extend(f'from:"{sender}"' for sender in hints.senders)
+        positive_terms.extend(
+            f'subject:"{subject}"' for subject in hints.subject_contains
+        )
+        plugin_subject_exclusions.extend(hints.subject_excludes)
+
+    all_subject_exclusions = list(
+        DEFAULT_SUBJECT_EXCLUSIONS if subject_exclusions is None else subject_exclusions
     )
-    return " ".join(
-        part
-        for part in [
-            "label:inbox",
-            "(label:banks-scotiabank OR label:banks-bac OR label:banks-promerica)",
-            f"-label:{processed_query_label}",
-            exclusion_terms,
-        ]
-        if part
-    )
+    all_subject_exclusions.extend(plugin_subject_exclusions)
+    parts = [base_query]
+    unique_positive_terms = _dedupe(positive_terms)
+    if unique_positive_terms:
+        parts.append(_or_group(unique_positive_terms))
+    parts.append(f"-{_label_term(processed_query_label)}")
+    parts.extend(f'-subject:"{subject}"' for subject in _dedupe(all_subject_exclusions))
+    return " ".join(part for part in parts if part)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Export bank transaction emails from Gmail to MoneyWiz CSV")
-    parser.add_argument("--apply", action="store_true", help="Add the processed label and archive handled emails")
-    parser.add_argument("--limit", type=int, default=None, help="Limit how many matching emails to process")
-    parser.add_argument("--output", type=Path, default=None, help="Optional output CSV path")
+    parser = argparse.ArgumentParser(
+        description="Export bank transaction emails from Gmail to MoneyWiz CSV"
+    )
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Add the processed label and archive handled emails",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Limit how many matching emails to process",
+    )
+    parser.add_argument(
+        "--output", type=Path, default=None, help="Optional output CSV path"
+    )
     parser.add_argument(
         "--credentials",
         type=Path,
@@ -56,7 +100,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--accounts",
         type=Path,
         default=Path("config/accounts.yaml"),
-        help="Path to the account mapping YAML",
+        help="Path to the YAML config with enabled plugins and account mappings",
     )
     parser.add_argument(
         "--exports-dir",
@@ -80,6 +124,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="List Gmail labels and exit",
     )
     parser.add_argument(
+        "--list-plugins",
+        action="store_true",
+        help="List available built-in and installed plugins and exit",
+    )
+    parser.add_argument(
         "--debug-skips",
         action="store_true",
         help="Include sender and a short text preview for skipped emails in the summary output",
@@ -95,18 +144,43 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
+    if args.list_plugins:
+        config = (
+            AppConfig.from_file(args.accounts)
+            if args.accounts.exists()
+            else AppConfig.default()
+        )
+        enabled_plugins = set(config.enabled_plugins)
+        for plugin_id, definition in discover_plugins().items():
+            enabled_marker = "*" if plugin_id in enabled_plugins else " "
+            print(
+                f"{enabled_marker} {plugin_id} ({definition.source}) - {definition.plugin.display_name}"
+            )
+        return 0
+
     if not args.credentials.exists():
         raise SystemExit(f"Missing credentials file: {args.credentials}")
     if not args.accounts.exists():
-        raise SystemExit(f"Missing account mapping file: {args.accounts}")
+        raise SystemExit(f"Missing config file: {args.accounts}")
 
-    subject_exclusions = [] if args.no_default_subject_exclusions else DEFAULT_SUBJECT_EXCLUSIONS
-    query = build_query(args.processed_query_label, subject_exclusions)
+    config = AppConfig.from_file(args.accounts)
+    enabled_plugins = resolve_enabled_plugins(list(config.enabled_plugins))
+
+    subject_exclusions = (
+        [] if args.no_default_subject_exclusions else DEFAULT_SUBJECT_EXCLUSIONS
+    )
+    query = build_query(
+        args.processed_query_label,
+        enabled_plugins,
+        base_query=config.query_base,
+        subject_exclusions=subject_exclusions,
+        query_hints_overrides=config.plugin_query_hints,
+    )
     timestamp = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
     csv_path = args.output or (args.exports_dir / f"transactions-{timestamp}.csv")
     summary_path = csv_path.with_suffix(".summary.json")
 
-    mappings = AccountMappings.from_file(args.accounts)
+    mappings = AccountMappings.from_dict(config.accounts)
     gmail = GmailClient(args.credentials, args.token)
 
     if args.list_labels:
@@ -122,7 +196,12 @@ def main(argv: list[str] | None = None) -> int:
 
     for message_id in message_ids:
         message = gmail.get_message(message_id)
-        result = process_message(message, mappings, include_debug_preview=args.debug_skips)
+        result = process_message(
+            message,
+            mappings,
+            plugins=enabled_plugins,
+            include_debug_preview=args.debug_skips,
+        )
         results.append(result)
         if result.status != "ready":
             continue
@@ -151,9 +230,12 @@ def main(argv: list[str] | None = None) -> int:
             }
         )
 
-    skipped_reasons = Counter(result.reason for result in results if result.status == "skipped")
+    skipped_reasons = Counter(
+        result.reason for result in results if result.status == "skipped"
+    )
     summary = {
         "mode": "apply" if args.apply else "dry-run",
+        "enabled_plugins": [plugin.id for plugin in enabled_plugins],
         "query": query,
         "fetched_emails": len(message_ids),
         "ready_emails": len(ready_message_ids),
@@ -162,15 +244,20 @@ def main(argv: list[str] | None = None) -> int:
         "summary_path": str(summary_path),
         "gmail_mutations_applied": mutated,
         "skipped": sum(1 for result in results if result.status == "skipped"),
-        "skipped_reasons": {reason or "Unknown": count for reason, count in skipped_reasons.items()},
+        "skipped_reasons": {
+            reason or "Unknown": count for reason, count in skipped_reasons.items()
+        },
         "mutation_errors": mutation_errors,
         "messages": [result.to_dict() for result in results],
     }
 
     summary_path.parent.mkdir(parents=True, exist_ok=True)
-    summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
+    summary_path.write_text(
+        json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
 
     print(f"Mode: {summary['mode']}")
+    print(f"Enabled plugins: {', '.join(summary['enabled_plugins']) or 'none'}")
     print(f"Fetched emails: {summary['fetched_emails']}")
     print(f"Ready emails: {summary['ready_emails']}")
     print(f"CSV rows written: {summary['csv_rows_written']}")
@@ -186,7 +273,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"- {count} x {reason}")
 
     if args.debug_skips:
-        skipped_messages = [message for message in summary["messages"] if message["status"] == "skipped"]
+        skipped_messages = [
+            message for message in summary["messages"] if message["status"] == "skipped"
+        ]
         if skipped_messages:
             print("Skipped message previews:")
             for message in skipped_messages:
@@ -205,3 +294,26 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     return 1 if summary["mutation_errors"] else 0
+
+
+def _dedupe(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for value in values:
+        if value in seen:
+            continue
+        deduped.append(value)
+        seen.add(value)
+    return deduped
+
+
+def _label_term(label: str) -> str:
+    if any(character.isspace() for character in label) or "/" in label:
+        return f'label:"{label}"'
+    return f"label:{label}"
+
+
+def _or_group(terms: list[str]) -> str:
+    if len(terms) == 1:
+        return terms[0]
+    return f"({' OR '.join(terms)})"

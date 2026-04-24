@@ -1,6 +1,7 @@
 import re
 
-from gmail_moneywiz_export.models import Transaction
+from gmail_moneywiz_export.models import GmailMessage, Transaction
+from gmail_moneywiz_export.plugins import QueryHints
 from gmail_moneywiz_export.normalization import (
     normalize_amount,
     normalize_currency,
@@ -14,6 +15,31 @@ CARD_NUMBER_RE = re.compile(r"^\*{4,}\d{4}$")
 CARD_TYPE_RE = re.compile(r"^(AMEX|VISA|MASTERCARD|MC)$", re.IGNORECASE)
 
 
+class BacPlugin:
+    id = "bac"
+    display_name = "BAC"
+    priority = 100
+
+    def query_hints(self) -> QueryHints:
+        return QueryHints(labels=("banks-bac",))
+
+    def match_score(self, message: GmailMessage) -> int:
+        text = message.text
+        if (
+            "Comercio:" in text
+            and "Monto:" in text
+            and (
+                "A continuación le detallamos la transacción realizada" in text
+                or "Tipo de Transacción:" in text
+            )
+        ):
+            return 100
+        return 0
+
+    def parse(self, message: GmailMessage) -> list[Transaction]:
+        return parse_bac(message.message_id, message.text)
+
+
 def parse_bac(message_id: str, text: str) -> list[Transaction]:
     lines = normalized_lines(text)
 
@@ -25,8 +51,12 @@ def parse_bac(message_id: str, text: str) -> list[Transaction]:
     date_raw = _require_value(lines, "Fecha:")
     amount_raw = _require_value(lines, "Monto:")
     card_identifier = _find_card_identifier(lines)
-    auth = _find_value(lines, "Autorización:") or _find_value(lines, "Número de Autorización:")
-    reference = _find_value(lines, "Referencia:") or _find_value(lines, "Número de Referencia:")
+    auth = _find_value(lines, "Autorización:") or _find_value(
+        lines, "Número de Autorización:"
+    )
+    reference = _find_value(lines, "Referencia:") or _find_value(
+        lines, "Número de Referencia:"
+    )
 
     currency = normalize_currency(amount_raw)
     amount = normalize_amount(amount_raw)

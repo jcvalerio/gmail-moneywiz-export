@@ -36,7 +36,11 @@ def clean_text(text: str) -> str:
 
 
 def normalized_lines(text: str) -> list[str]:
-    return [collapse_spaces(line) for line in clean_text(text).splitlines() if collapse_spaces(line)]
+    return [
+        collapse_spaces(line)
+        for line in clean_text(text).splitlines()
+        if collapse_spaces(line)
+    ]
 
 
 def collapse_spaces(value: str) -> str:
@@ -85,7 +89,9 @@ def parse_scotia_date(value: str) -> str:
 
 
 def parse_promerica_date(value: str) -> str:
-    match = re.search(r"(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})", collapse_spaces(value), re.IGNORECASE)
+    match = re.search(
+        r"(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})", collapse_spaces(value), re.IGNORECASE
+    )
     if not match:
         raise NormalizationError(f"Invalid Promerica date: {value}")
     day = int(match.group(1))

@@ -1,14 +1,34 @@
-bac:
-  "AMEX ***********1234":
-    CRC: "AMEX"
-    USD: "AMEX $"
+plugins:
+  enabled:
+    - bac
+    - scotia
+    - promerica
+  query_hints:
+    bac:
+      labels:
+        - banks-bac
+    scotia:
+      labels:
+        - banks-scotiabank
+    promerica:
+      labels:
+        - banks-promerica
 
-scotia:
-  "VISA 4321":
-    CRC: "Infinity"
-    USD: "Infinity $"
+query:
+  base: label:inbox
 
-promerica:
-  "5678":
-    CRC: "Black"
-    USD: "Black $"
+accounts:
+  bac:
+    "AMEX ***********1234":
+      CRC: "AMEX"
+      USD: "AMEX $"
+
+  scotia:
+    "VISA 4321":
+      CRC: "Infinity"
+      USD: "Infinity $"
+
+  promerica:
+    "5678":
+      CRC: "Black"
+      USD: "Black $"

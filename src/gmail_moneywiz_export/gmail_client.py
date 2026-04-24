@@ -32,7 +32,12 @@ class GmailClient:
             result = (
                 self._service.users()
                 .messages()
-                .list(userId="me", q=query, pageToken=page_token, maxResults=min(limit or 100, 100))
+                .list(
+                    userId="me",
+                    q=query,
+                    pageToken=page_token,
+                    maxResults=min(limit or 100, 100),
+                )
                 .execute()
             )
             messages = result.get("messages", [])
@@ -53,8 +58,18 @@ class GmailClient:
         )
         payload = result.get("payload", {})
         headers = payload.get("headers", [])
-        subject = next((header["value"] for header in headers if header["name"].lower() == "subject"), "")
-        sender = next((header["value"] for header in headers if header["name"].lower() == "from"), "")
+        subject = next(
+            (
+                header["value"]
+                for header in headers
+                if header["name"].lower() == "subject"
+            ),
+            "",
+        )
+        sender = next(
+            (header["value"] for header in headers if header["name"].lower() == "from"),
+            "",
+        )
         return GmailMessage(
             message_id=result["id"],
             subject=subject,
@@ -110,7 +125,9 @@ class GmailClient:
         if self._label_cache is not None:
             return self._label_cache
         result = self._service.users().labels().list(userId="me").execute()
-        self._label_cache = {label["name"]: label["id"] for label in result.get("labels", [])}
+        self._label_cache = {
+            label["name"]: label["id"] for label in result.get("labels", [])
+        }
         return self._label_cache
 
     def _find_label_id(self, label_name: str) -> str | None:
@@ -125,7 +142,9 @@ class GmailClient:
                 return label_id
         return None
 
-    def mark_processed_and_archive(self, message_id: str, processed_label_name: str) -> None:
+    def mark_processed_and_archive(
+        self, message_id: str, processed_label_name: str
+    ) -> None:
         label_id = self.ensure_label(processed_label_name)
         (
             self._service.users()
@@ -144,7 +163,9 @@ class GmailClient:
     def _load_credentials(self) -> Credentials:
         creds: Credentials | None = None
         if self._token_path.exists():
-            creds = Credentials.from_authorized_user_file(str(self._token_path), [GMAIL_MODIFY_SCOPE])
+            creds = Credentials.from_authorized_user_file(
+                str(self._token_path), [GMAIL_MODIFY_SCOPE]
+            )
             if not creds.has_scopes([GMAIL_MODIFY_SCOPE]):
                 creds = None
 
@@ -159,7 +180,9 @@ class GmailClient:
                 return creds
             creds = None
 
-        flow = InstalledAppFlow.from_client_secrets_file(str(self._credentials_path), [GMAIL_MODIFY_SCOPE])
+        flow = InstalledAppFlow.from_client_secrets_file(
+            str(self._credentials_path), [GMAIL_MODIFY_SCOPE]
+        )
         creds = flow.run_local_server(port=0)
         self._token_path.parent.mkdir(parents=True, exist_ok=True)
         self._token_path.write_text(creds.to_json(), encoding="utf-8")

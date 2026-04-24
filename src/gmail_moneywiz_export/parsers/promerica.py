@@ -1,6 +1,7 @@
 import re
 
-from gmail_moneywiz_export.models import Transaction
+from gmail_moneywiz_export.models import GmailMessage, Transaction
+from gmail_moneywiz_export.plugins import QueryHints
 from gmail_moneywiz_export.normalization import (
     normalize_amount,
     normalize_currency,
@@ -11,6 +12,26 @@ from gmail_moneywiz_export.normalization import (
 from gmail_moneywiz_export.parsers import ParseError
 
 CARD_RE = re.compile(r"\*{4}-\*{4}-\*{4}-(\d{4})")
+
+
+class PromericaPlugin:
+    id = "promerica"
+    display_name = "Promerica"
+    priority = 100
+
+    def query_hints(self) -> QueryHints:
+        return QueryHints(labels=("banks-promerica",))
+
+    def match_score(self, message: GmailMessage) -> int:
+        text = message.text
+        if "Número de tarjeta" in text and (
+            "Fecha/hora" in text or "****-****-****-" in text
+        ):
+            return 100
+        return 0
+
+    def parse(self, message: GmailMessage) -> list[Transaction]:
+        return parse_promerica(message.message_id, message.text)
 
 
 def parse_promerica(message_id: str, text: str) -> list[Transaction]:
@@ -62,5 +83,7 @@ def _find_value(lines: list[str], label: str) -> str | None:
 def _require_value(lines: list[str], label: str) -> str:
     value = _find_value(lines, label)
     if value is None:
-        raise ParseError(f"Promerica — needs manual review or parsing template ({label})")
+        raise ParseError(
+            f"Promerica — needs manual review or parsing template ({label})"
+        )
     return value
