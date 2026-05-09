@@ -21,6 +21,20 @@ SPANISH_MONTHS = {
     "nov": 11,
     "dic": 12,
 }
+SPANISH_MONTH_ABBR_TO_ENGLISH = {
+    "ene": "Jan",
+    "feb": "Feb",
+    "mar": "Mar",
+    "abr": "Apr",
+    "may": "May",
+    "jun": "Jun",
+    "jul": "Jul",
+    "ago": "Aug",
+    "sep": "Sep",
+    "oct": "Oct",
+    "nov": "Nov",
+    "dic": "Dec",
+}
 
 
 class NormalizationError(ValueError):
@@ -77,7 +91,16 @@ def parse_bac_date(value: str) -> str:
         "%b %d, %Y, %I:%M",
         "%b %d, %Y, %I:%M %p",
     ]
-    return _parse_with_formats(value, formats)
+    try:
+        return _parse_with_formats(value, formats)
+    except NormalizationError as error:
+        translated = _translate_spanish_month_abbreviation(value)
+        if translated != value:
+            try:
+                return _parse_with_formats(translated, formats)
+            except NormalizationError:
+                pass
+        raise error
 
 
 def parse_scotia_date(value: str) -> str:
@@ -100,6 +123,16 @@ def parse_promerica_date(value: str) -> str:
     if month is None:
         raise NormalizationError(f"Unsupported Promerica month: {value}")
     return datetime(year, month, day).strftime("%m/%d/%Y")
+
+
+def _translate_spanish_month_abbreviation(value: str) -> str:
+    match = re.match(r"^([A-Za-zÁÉÍÓÚÑáéíóúñ]{3,})\.?", value)
+    if not match:
+        return value
+    english_month = SPANISH_MONTH_ABBR_TO_ENGLISH.get(match.group(1).lower())
+    if english_month is None:
+        return value
+    return f"{english_month}{value[match.end() :]}"
 
 
 def _parse_with_formats(value: str, formats: list[str]) -> str:
