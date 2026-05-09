@@ -164,6 +164,21 @@ To include sender and a short preview for skipped emails:
 uv run gmail-moneywiz-export --debug-skips
 ```
 
+To infer MoneyWiz Payee and Category values from a previous MoneyWiz
+all-accounts CSV export, pass it as history:
+
+```bash
+uv run gmail-moneywiz-export \
+  --moneywiz-history ~/Downloads/2026.05.03-all-accounts.csv
+```
+
+When run in a terminal, the exporter prompts once per distinct merchant. It first
+tries exact historical merchant matches, then fuzzy Payee overlap such as
+`DLC* UBER EATS SAN JOSE` → `Uber Eats`. Press Enter to accept the inferred
+Payee/Category, type an existing value to override, or type `?text` to search
+existing MoneyWiz Payees/Categories and select a numbered match. The bank
+merchant text is exported as `memo`.
+
 If you need to disable the built-in subject exclusions used to ignore obvious statement/update emails:
 
 ```bash
@@ -283,7 +298,7 @@ Each run creates:
 CSV format:
 
 ```csv
-account,date,amount,merchant,currency
+account,date,amount,payee,category,memo,currency
 ```
 
 ## Samples, linting, and tests

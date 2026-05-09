@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
@@ -10,6 +11,7 @@ from gmail_moneywiz_export.config import AppConfig
 from gmail_moneywiz_export.exporter import write_csv
 from gmail_moneywiz_export.gmail_client import GmailClient
 from gmail_moneywiz_export.mapping import AccountMappings
+from gmail_moneywiz_export.moneywiz import MoneyWizHistory, build_moneywiz_rows
 from gmail_moneywiz_export.plugins import (
     QueryHintsOverride,
     SourcePlugin,
@@ -138,6 +140,18 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Do not exclude known non-transaction email subjects from the Gmail query",
     )
+    parser.add_argument(
+        "--moneywiz-history",
+        type=Path,
+        default=None,
+        help="MoneyWiz all-accounts CSV export used to infer Payee and Category defaults",
+    )
+    parser.add_argument(
+        "--no-interactive-mapping",
+        action="store_true",
+        help="Use inferred MoneyWiz defaults without prompting for Payee/Category overrides",
+    )
+
     return parser
 
 
@@ -191,7 +205,7 @@ def main(argv: list[str] | None = None) -> int:
     message_ids = gmail.list_message_ids(query, args.limit)
 
     results: list[MessageResult] = []
-    csv_rows: list[dict[str, str]] = []
+    raw_csv_rows: list[dict[str, str]] = []
     ready_message_ids: list[str] = []
 
     for message_id in message_ids:
@@ -205,8 +219,29 @@ def main(argv: list[str] | None = None) -> int:
         results.append(result)
         if result.status != "ready":
             continue
-        csv_rows.extend(result.rows or [])
+        raw_csv_rows.extend(result.rows or [])
         ready_message_ids.append(message_id)
+
+    moneywiz_history = MoneyWizHistory.empty()
+    moneywiz_history_path = (
+        args.moneywiz_history.expanduser() if args.moneywiz_history else None
+    )
+    if moneywiz_history_path:
+        if not moneywiz_history_path.exists():
+            raise SystemExit(f"Missing MoneyWiz history CSV: {moneywiz_history_path}")
+        moneywiz_history = MoneyWizHistory.from_csv(moneywiz_history_path)
+
+    interactive_mapping = bool(
+        moneywiz_history_path and not args.no_interactive_mapping and sys.stdin.isatty()
+    )
+    csv_rows = build_moneywiz_rows(
+        raw_csv_rows,
+        moneywiz_history,
+        interactive=interactive_mapping,
+    )
+    missing_payee_category_rows = sum(
+        1 for row in csv_rows if not row["payee"] or not row["category"]
+    )
 
     csv_written = False
     if csv_rows:
@@ -242,6 +277,11 @@ def main(argv: list[str] | None = None) -> int:
         "csv_rows_written": len(csv_rows),
         "csv_path": str(csv_path) if csv_written else None,
         "summary_path": str(summary_path),
+        "moneywiz_history_path": str(moneywiz_history_path)
+        if moneywiz_history_path
+        else None,
+        "interactive_mapping": interactive_mapping,
+        "missing_payee_category_rows": missing_payee_category_rows,
         "gmail_mutations_applied": mutated,
         "skipped": sum(1 for result in results if result.status == "skipped"),
         "skipped_reasons": {
@@ -261,6 +301,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Fetched emails: {summary['fetched_emails']}")
     print(f"Ready emails: {summary['ready_emails']}")
     print(f"CSV rows written: {summary['csv_rows_written']}")
+    print(f"Missing Payee/Category rows: {summary['missing_payee_category_rows']}")
     print(f"Gmail mutations applied: {summary['gmail_mutations_applied']}")
     print(f"Skipped: {summary['skipped']}")
     if csv_written:

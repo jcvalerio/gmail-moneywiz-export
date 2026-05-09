@@ -14,6 +14,10 @@ def test_parse_bac_date() -> None:
     assert parse_bac_date("Mar 26, 2026, 11:15") == "03/26/2026"
 
 
+def test_parse_bac_date_with_spanish_month() -> None:
+    assert parse_bac_date("Abr 29, 2026, 10:34") == "04/29/2026"
+
+
 def test_parse_scotia_date() -> None:
     assert parse_scotia_date("21/04/2026") == "04/21/2026"
 
