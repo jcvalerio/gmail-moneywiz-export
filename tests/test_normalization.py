@@ -10,6 +10,11 @@ def test_normalize_amount_removes_commas_and_keeps_two_decimals() -> None:
     assert normalize_amount("CRC 45,000.00") == "45000.00"
 
 
+def test_normalize_amount_accepts_leading_dot_zero_amount() -> None:
+    assert normalize_amount("USD .00") == "0.00"
+    assert normalize_amount("USD .50") == "0.50"
+
+
 def test_parse_bac_date() -> None:
     assert parse_bac_date("Mar 26, 2026, 11:15") == "03/26/2026"
 

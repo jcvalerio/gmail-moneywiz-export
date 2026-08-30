@@ -1,0 +1,18 @@
+Hola CLIENTE DE PRUEBA
+A continuación le detallamos la transacción realizada:
+Comercio:
+COMERCIO DEMO
+Ciudad y país:
++10000000000, Pais no Definido
+Fecha:
+Jul 26, 2026, 18:07
+VISA
+************0000
+Autorización:
+100000
+Referencia:
+600000000000
+Tipo de Transacción:
+COMPRA
+Monto:
+USD .00

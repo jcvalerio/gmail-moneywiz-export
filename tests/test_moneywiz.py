@@ -136,3 +136,107 @@ def test_interactive_search_allows_numbered_payee_selection(
 
     assert rows[0]["payee"] == "Uber Eats"
     assert rows[0]["category"] == "Food & Dining ► Restaurants"
+
+
+def test_interactive_payee_categories_allow_numbered_selection(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    history_path = tmp_path / "moneywiz.csv"
+    history_path.write_text(
+        "Description,Payee,Category,Memo\n"
+        "Streaming,Netflix,Community ► Subscriptions ► Streaming,\n"
+        "Movies,Netflix,Entertainment ► Movies,\n",
+        encoding="utf-8",
+    )
+    history = MoneyWizHistory.from_csv(history_path)
+    responses = iter(["Netflix", "2"])
+    monkeypatch.setattr("builtins.input", lambda _prompt: next(responses))
+
+    rows = build_moneywiz_rows(
+        [
+            {
+                "account": "AMEX Cashback",
+                "date": "05/03/2026",
+                "amount": "7999.00",
+                "merchant": "UNKNOWN MERCHANT",
+                "currency": "CRC",
+            }
+        ],
+        history,
+        interactive=True,
+    )
+
+    output = capsys.readouterr().out
+    assert "Possible categories for this Payee:" in output
+    assert "1. Community ► Subscriptions ► Streaming" in output
+    assert "2. Entertainment ► Movies" in output
+    assert rows[0]["payee"] == "Netflix"
+    assert rows[0]["category"] == "Entertainment ► Movies"
+
+
+def test_interactive_allows_confirmed_new_payee_and_category(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    history_path = tmp_path / "moneywiz.csv"
+    history_path.write_text(
+        "Description,Payee,Category,Memo\n"
+        "Delivery,Uber Eats,Food & Dining ► Restaurants,\n",
+        encoding="utf-8",
+    )
+    history = MoneyWizHistory.from_csv(history_path)
+    responses = iter(
+        ["Café Volio", "y", "Food & Dining ► Coffee Shops", "y"],
+    )
+    monkeypatch.setattr("builtins.input", lambda _prompt: next(responses))
+
+    rows = build_moneywiz_rows(
+        [
+            {
+                "account": "AMEX Cashback",
+                "date": "05/03/2026",
+                "amount": "3200.00",
+                "merchant": "CAFE VOLIO SAN JOSE",
+                "currency": "CRC",
+            }
+        ],
+        history,
+        interactive=True,
+    )
+
+    assert rows[0]["payee"] == "Café Volio"
+    assert rows[0]["category"] == "Food & Dining ► Coffee Shops"
+
+
+def test_interactive_declined_new_payee_reprompts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    history_path = tmp_path / "moneywiz.csv"
+    history_path.write_text(
+        "Description,Payee,Category,Memo\n"
+        "Delivery,Uber Eats,Food & Dining ► Restaurants,\n",
+        encoding="utf-8",
+    )
+    history = MoneyWizHistory.from_csv(history_path)
+    responses = iter(["Uber Eets", "", "Uber Eats", ""])
+    monkeypatch.setattr("builtins.input", lambda _prompt: next(responses))
+
+    rows = build_moneywiz_rows(
+        [
+            {
+                "account": "AMEX Cashback",
+                "date": "05/03/2026",
+                "amount": "2500.00",
+                "merchant": "UNKNOWN MERCHANT",
+                "currency": "CRC",
+            }
+        ],
+        history,
+        interactive=True,
+    )
+
+    assert rows[0]["payee"] == "Uber Eats"
+    assert rows[0]["category"] == "Food & Dining ► Restaurants"

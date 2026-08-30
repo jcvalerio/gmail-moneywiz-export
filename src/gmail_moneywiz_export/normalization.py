@@ -5,7 +5,7 @@ import re
 
 ZERO_WIDTH_RE = re.compile(r"[\u200b-\u200f\ufeff]")
 WHITESPACE_RE = re.compile(r"\s+")
-AMOUNT_RE = re.compile(r"([\d,]+\.\d{2})")
+AMOUNT_RE = re.compile(r"((?:\d[\d,]*)?\.\d{2})")
 CURRENCY_RE = re.compile(r"\b(CRC|USD)\b", re.IGNORECASE)
 SPANISH_MONTHS = {
     "ene": 1,
@@ -88,6 +88,7 @@ def parse_bac_date(value: str) -> str:
     value = collapse_spaces(value)
     formats = [
         "%b %d, %Y, %H:%M",
+        "%b %d, %Y , %H:%M",
         "%b %d, %Y, %I:%M",
         "%b %d, %Y, %I:%M %p",
     ]

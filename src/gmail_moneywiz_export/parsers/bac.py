@@ -12,7 +12,7 @@ from gmail_moneywiz_export.normalization import (
 from gmail_moneywiz_export.parsers import ParseError, SkipMessage
 
 CARD_NUMBER_RE = re.compile(r"^\*{4,}\d{4}$")
-CARD_TYPE_RE = re.compile(r"^(AMEX|VISA|MASTERCARD|MC)$", re.IGNORECASE)
+CARD_TYPE_RE = re.compile(r"^(AMEX|VISA|MASTERCARD|MC|MASTER:|VISA:)$", re.IGNORECASE)
 
 
 class BacPlugin:
@@ -60,6 +60,8 @@ def parse_bac(message_id: str, text: str) -> list[Transaction]:
 
     currency = normalize_currency(amount_raw)
     amount = normalize_amount(amount_raw)
+    if amount == "0.00":
+        raise SkipMessage("BAC zero-amount authorization")
 
     return [
         Transaction(

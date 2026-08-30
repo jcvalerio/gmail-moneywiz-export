@@ -177,15 +177,13 @@ def _prompt_assignment(
         else history.default_category_for_payee(payee)
     )
     category_options = history.categories_for_payee(payee)
-    if len(category_options) > 1:
-        print("Possible categories for this Payee:")
-        for category in category_options:
-            print(f"- {_display_value(category)}")
     category = _prompt_existing_value(
         label="Category",
         default=category_default,
         resolve=history.resolve_category,
         search=history.search_categories,
+        options=category_options if len(category_options) > 1 else None,
+        options_heading="Possible categories for this Payee:",
     )
     return PayeeCategoryAssignment(payee=payee, category=category)
 
@@ -196,12 +194,25 @@ def _prompt_existing_value(
     default: str | None,
     resolve,
     search,
+    options: list[str] | None = None,
+    options_heading: str | None = None,
 ) -> str:
+    options = options or []
+    if options:
+        print(options_heading or f"Existing {label.lower()} options:")
+        _print_numbered_values(options)
+
     while True:
         prompt = f"{label} [{_display_value(default)}]: " if default else f"{label}: "
         response = input(prompt).strip()
         if not response and default:
             return default
+        if response.isdigit() and options:
+            selected_index = int(response)
+            if 1 <= selected_index <= len(options):
+                return options[selected_index - 1]
+            print(f"Type a number from 1 to {len(options)}, or an existing {label}.")
+            continue
         if response.startswith("?"):
             matches = search(response[1:].strip())
             selection = _prompt_match_selection(label, matches)
@@ -211,7 +222,9 @@ def _prompt_existing_value(
         resolved = resolve(response)
         if resolved:
             return resolved
-        print(f"Unknown {label}. Type an existing {label}, or use ?text to search.")
+        if _confirm_new_value(label, response):
+            return response
+        print(f"Type an existing {label}, or use ?text to search.")
 
 
 def _prompt_match_selection(label: str, matches: list[str]) -> str | None:
@@ -220,8 +233,7 @@ def _prompt_match_selection(label: str, matches: list[str]) -> str | None:
         return None
 
     print(f"Existing {label.lower()} matches:")
-    for index, match in enumerate(matches, start=1):
-        print(f"{index}. {_display_value(match)}")
+    _print_numbered_values(matches)
 
     while True:
         response = input(
@@ -232,6 +244,18 @@ def _prompt_match_selection(label: str, matches: list[str]) -> str | None:
         if response.isdigit() and 1 <= int(response) <= len(matches):
             return matches[int(response) - 1]
         print(f"Type a number from 1 to {len(matches)}, or press Enter.")
+
+
+def _confirm_new_value(label: str, value: str) -> bool:
+    response = input(
+        f'Unknown {label} "{_display_value(value)}". Use it as a new {label}? [y/N]: '
+    ).strip()
+    return response.casefold() in {"y", "yes"}
+
+
+def _print_numbered_values(values: list[str]) -> None:
+    for index, value in enumerate(values, start=1):
+        print(f"{index}. {_display_value(value)}")
 
 
 def _search_values(

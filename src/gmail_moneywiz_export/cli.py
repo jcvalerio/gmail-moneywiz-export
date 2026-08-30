@@ -268,6 +268,9 @@ def main(argv: list[str] | None = None) -> int:
     skipped_reasons = Counter(
         result.reason for result in results if result.status == "skipped"
     )
+    error_reasons = Counter(
+        result.reason for result in results if result.status == "error"
+    )
     summary = {
         "mode": "apply" if args.apply else "dry-run",
         "enabled_plugins": [plugin.id for plugin in enabled_plugins],
@@ -287,6 +290,10 @@ def main(argv: list[str] | None = None) -> int:
         "skipped_reasons": {
             reason or "Unknown": count for reason, count in skipped_reasons.items()
         },
+        "errors": sum(1 for result in results if result.status == "error"),
+        "error_reasons": {
+            reason or "Unknown": count for reason, count in error_reasons.items()
+        },
         "mutation_errors": mutation_errors,
         "messages": [result.to_dict() for result in results],
     }
@@ -304,6 +311,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Missing Payee/Category rows: {summary['missing_payee_category_rows']}")
     print(f"Gmail mutations applied: {summary['gmail_mutations_applied']}")
     print(f"Skipped: {summary['skipped']}")
+    print(f"Errors: {summary['errors']}")
     if csv_written:
         print(f"CSV: {csv_path}")
     print(f"Summary: {summary_path}")
@@ -312,6 +320,12 @@ def main(argv: list[str] | None = None) -> int:
         print("Skipped reasons:")
         for reason, count in summary["skipped_reasons"].items():
             print(f"- {count} x {reason}")
+
+    if summary["error_reasons"]:
+        print("Processing errors:")
+        for reason, count in summary["error_reasons"].items():
+            print(f"- {count} x {reason}")
+        print("Errored emails were left untouched. See the summary for message ids.")
 
     if args.debug_skips:
         skipped_messages = [
