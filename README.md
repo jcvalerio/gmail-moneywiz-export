@@ -176,8 +176,11 @@ When run in a terminal, the exporter prompts once per distinct merchant. It firs
 tries exact historical merchant matches, then fuzzy Payee overlap such as
 `DLC* UBER EATS SAN JOSE` → `Uber Eats`. Press Enter to accept the inferred
 Payee/Category, type an existing value to override, or type `?text` to search
-existing MoneyWiz Payees/Categories and select a numbered match. The bank
-merchant text is exported as `memo`.
+existing MoneyWiz Payees/Categories and select a numbered match. When the Payee
+has several historical Categories, they are listed and can be picked by number.
+Typing a value that is not in the history asks for confirmation before it is used
+as a new Payee/Category, so typos are caught but custom names are still allowed.
+The bank merchant text is exported as `memo`.
 
 If you need to disable the built-in subject exclusions used to ignore obvious statement/update emails:
 
@@ -300,6 +303,14 @@ CSV format:
 ```csv
 account,date,amount,payee,category,memo,currency
 ```
+
+A single email never aborts a run. Emails that are recognized but not exportable
+are counted under `skipped`/`skipped_reasons`, and unexpected failures are counted
+under `errors`/`error_reasons` with the exception type and message. Both are left
+untouched in Gmail even with `--apply`, so they can be re-run after a fix. Use
+`--debug-skips` to print a short preview of those emails. Zero-amount
+authorizations, such as the `USD 0.00` charge a card verification produces, are
+skipped rather than exported.
 
 ## Samples, linting, and tests
 

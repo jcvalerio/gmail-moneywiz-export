@@ -2,6 +2,7 @@ from dataclasses import asdict, dataclass
 
 from gmail_moneywiz_export.mapping import AccountMappings, MappingError
 from gmail_moneywiz_export.models import GmailMessage
+from gmail_moneywiz_export.normalization import NormalizationError
 from gmail_moneywiz_export.parsers import ParseError, SkipMessage
 from gmail_moneywiz_export.plugins import (
     PluginError,
@@ -32,6 +33,28 @@ def process_message(
     mappings: AccountMappings,
     plugins: list[SourcePlugin] | None = None,
     include_debug_preview: bool = False,
+) -> MessageResult:
+    """Process a single message, never raising for a message-level failure."""
+    try:
+        return _process_message(message, mappings, plugins, include_debug_preview)
+    except Exception as error:  # noqa: BLE001
+        return MessageResult(
+            message_id=message.message_id,
+            subject=message.subject,
+            sender=message.sender,
+            status="error",
+            reason=f"{type(error).__name__}: {error}",
+            debug_preview=_build_debug_preview(message.text)
+            if include_debug_preview
+            else None,
+        )
+
+
+def _process_message(
+    message: GmailMessage,
+    mappings: AccountMappings,
+    plugins: list[SourcePlugin] | None,
+    include_debug_preview: bool,
 ) -> MessageResult:
     plugins = plugins or [
         definition.plugin for definition in builtin_plugins().values()
@@ -77,7 +100,7 @@ def process_message(
             if include_debug_preview
             else None,
         )
-    except (ParseError, MappingError) as error:
+    except (ParseError, MappingError, NormalizationError) as error:
         return MessageResult(
             message_id=message.message_id,
             subject=message.subject,
